@@ -4,6 +4,7 @@ const Client = require('./Client');
 const Contact = require('./Contact');
 const Job = require('./Job');
 const Product = require('./Product');
+const AmazonAffiliateListing = require('./AmazonAffiliateListing');
 const User = require('./User');
 const { Invoice, InvoiceItem } = require('./Invoice');
 const Cart = require('./Cart');
@@ -35,6 +36,7 @@ module.exports = {
   Contact,
   Job,
   Product,
+  AmazonAffiliateListing,
   User,
   Invoice,
   InvoiceItem,

@@ -2,9 +2,9 @@ name: Backend CI
 
 on:
   pull_request:
-    branches: [dev, test, stage, production]
+    branches: [dev, test, staging, production]
   push:
-    branches: [dev, test, stage, production]
+    branches: [dev, test, staging, production]
 
 jobs:
   test:
@@ -24,5 +24,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
+      - name: Run tests with coverage
         run: npm run test:ci
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-${{ github.run_id }}
+          path: coverage/
+          if-no-files-found: ignore

@@ -12,7 +12,7 @@ jest.mock('../../models', () => ({
     },
 }));
 // Mock authentication middlewares
-jest.mock('../../middleware/auth', () => (req, res, next) => next()); // Simulate successful authentication
+jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => next() })); // Simulate successful authentication
 jest.mock('../../middleware/adminAuth', () => (req, res, next) => next()); // Simulate successful admin authentication
 describe('User Controller', () => {
     beforeEach(() => {

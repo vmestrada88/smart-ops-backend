@@ -21,7 +21,7 @@ jest.mock('../../models', () => ({
 }));
 
 // Mock authentication middlewares
-jest.mock('../../middleware/auth', () => (req, res, next) => next()); // Simulate successful authentication
+jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => next() })); // Simulate successful authentication
 jest.mock('../../middleware/adminAuth', () => (req, res, next) => next()); // Simulate successful admin authentication
 
 describe('Client Controller', () => {
@@ -49,7 +49,15 @@ describe('Client Controller', () => {
     expect(res.statusCode).toBe(201);
     expect(res.body).toEqual(mockClient);
     expect(Client.create).toHaveBeenCalledWith(
-      { companyName: 'Test Company', address: '123 Main St', contacts: [] },
+      {
+        companyName: 'Test Company',
+        address: '123 Main St',
+        city: undefined,
+        state: undefined,
+        zip: undefined,
+        status: 'active',
+        contacts: [],
+      },
       { include: [{ model: Contact, as: 'contacts' }] }
     );
   });
@@ -168,7 +176,7 @@ describe('Client Controller', () => {
   });
 
   it('should add a job to a client', async () => {
-    const mockClient = { id: 1, companyName: 'Test Client' };
+    const mockClient = { id: 1, companyName: 'Test Client', status: 'active' };
     const mockJob = { id: 1, description: 'Test Job', clientId: 1 };
     Client.findByPk.mockResolvedValue(mockClient);
     Job.create.mockResolvedValue(mockJob);

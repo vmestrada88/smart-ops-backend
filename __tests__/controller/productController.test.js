@@ -1,13 +1,72 @@
 const request = require('supertest');
-const app = require('../../server'); // Make sure your app is exported from server.js
-const Product = require('../../models/Product'); // Mock the Product model
 
-// Mock the Product model
-jest.mock('../../models/Product');
+jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => next() }));
+jest.mock('../../middleware/adminAuth', () => (req, res, next) => next());
+jest.mock('../../routes/proposalRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../routes/amazonAffiliateListingRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../routes/clientsRoutes', () => {
+  const express = require('express');
+  const router = express.Router();
+  router.get('/', (req, res) => res.json({ clients: [] }));
+  return router;
+});
+jest.mock('../../routes/invoiceRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../routes/cartRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../routes/orderRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../routes/usersRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../routes/jobRoutes', () => {
+  const express = require('express');
+  return express.Router();
+});
+jest.mock('../../models/db', () => ({
+  authenticate: jest.fn(),
+  sync: jest.fn().mockResolvedValue(undefined),
+  query: jest.fn(),
+  close: jest.fn(),
+  define: jest.fn(() => ({
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+  })),
+}));
+jest.mock('../../models/User', () => ({
+  findOne: jest.fn(),
+  create: jest.fn(),
+  findByPk: jest.fn(),
+}));
+jest.mock('../../models/Product', () => ({
+  findAll: jest.fn(),
+  findAndCountAll: jest.fn(),
+  findOne: jest.fn(),
+  findByPk: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+  destroy: jest.fn(),
+}));
 
-// Mock authentication middlewares
-jest.mock('../../middleware/auth', () => (req, res, next) => next()); // Simulate successful authentication
-jest.mock('../../middleware/adminAuth', () => (req, res, next) => next()); // Simulate successful admin authentication
+const app = require('../../server');
+const Product = require('../../models/Product');
 
 describe('Product Controller', () => {
   beforeEach(() => {

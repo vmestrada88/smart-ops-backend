@@ -162,6 +162,30 @@ jest.mock('../routes/jobRoutes', () => {
     return router;
 });
 
+// 🔧 MOCK AMAZON AFFILIATE LISTING ROUTES
+jest.mock('../routes/amazonAffiliateListingRoutes', () => {
+    const express = require('express');
+    const router = express.Router();
+
+    router.get('/', (req, res) => {
+        res.json({ listings: [] });
+    });
+
+    return router;
+});
+
+// 🔧 MOCK PROPOSAL ROUTES (Proposal model init breaks under db mock)
+jest.mock('../routes/proposalRoutes', () => {
+    const express = require('express');
+    const router = express.Router();
+
+    router.get('/', (req, res) => {
+        res.json({ proposals: [] });
+    });
+
+    return router;
+});
+
 // Ahora importar el app DESPUÉS de los mocks
 const app = require('../server');
 const sequelize = require('../models/db');

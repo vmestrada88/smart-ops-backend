@@ -92,6 +92,10 @@ app.use(express.json());
  * Registers API routes for products, authentication, clients, invoices, and users.
  */
 app.use('/api/products', productRoutes);
+app.use('/api/shop/amazon-listings', require('./routes/amazonAffiliateListingRoutes'));
+console.log(
+  'Shop: Amazon affiliate listings at /api/shop/amazon-listings (POST …/import-from-url requires admin JWT)'
+);
 app.use('/api', require('./routes/auth'));
 app.use('/api/clients', require('./routes/clientsRoutes'));
 app.use('/api/invoices', require('./routes/invoiceRoutes'));

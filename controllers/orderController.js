@@ -1,26 +1,13 @@
 const { Order, OrderItem, Cart, Product, sequelize } = require('../models');
 
-// Lazy load Stripe to avoid blocking server startup if key is missing
-let stripe = null;
-const getStripe = () => {
-  if (!stripe) {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY is not configured');
-    }
-    stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-  }
-  return stripe;
-};
-
 const orderController = {
-  // Create order
+  // Create order from cart (no in-app card payment; Amazon storefront is separate)
   async createOrder(req, res) {
     const transaction = await sequelize.transaction();
     try {
       const userId = req.user.id;
-      const { shippingAddress, items } = req.body;
+      const { shippingAddress } = req.body;
 
-      // Get cart items
       const cartItems = await Cart.findAll({
         where: { userId },
         include: [{
@@ -35,7 +22,6 @@ const orderController = {
         return res.status(400).json({ error: 'Cart is empty' });
       }
 
-      // Calculate total
       let totalAmount = 0;
       const orderItems = [];
 
@@ -54,38 +40,25 @@ const orderController = {
         });
       }
 
-      // Create Stripe PaymentIntent
-      const stripeInstance = getStripe();
-      const paymentIntent = await stripeInstance.paymentIntents.create({
-        amount: Math.round(totalAmount * 100), // Convert to cents
-        currency: 'usd',
-        metadata: {
-          userId: userId.toString()
-        }
-      });
-
-      // Create order
       const order = await Order.create({
         userId,
         totalAmount,
         shippingAddress,
-        paymentIntentId: paymentIntent.id
+        paymentIntentId: null,
+        status: 'pending',
       }, { transaction });
 
-      // Create order items
       for (const item of orderItems) {
         await OrderItem.create({
           orderId: order.id,
           ...item
         }, { transaction });
 
-        // Update product stock
         const product = await Product.findByPk(item.productId, { transaction });
         product.quantity -= item.quantity;
         await product.save({ transaction });
       }
 
-      // Clear cart
       await Cart.destroy({
         where: { userId },
         transaction
@@ -93,10 +66,7 @@ const orderController = {
 
       await transaction.commit();
 
-      res.json({
-        order,
-        clientSecret: paymentIntent.client_secret
-      });
+      res.json({ order });
     } catch (error) {
       await transaction.rollback();
       console.error('Error creating order:', error);
@@ -104,7 +74,6 @@ const orderController = {
     }
   },
 
-  // Get user's orders
   async getOrders(req, res) {
     try {
       const userId = req.user.id;
@@ -127,7 +96,6 @@ const orderController = {
     }
   },
 
-  // Get single order
   async getOrder(req, res) {
     try {
       const userId = req.user.id;

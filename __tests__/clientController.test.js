@@ -83,6 +83,7 @@ describe('Client Controller - Complete Coverage', () => {
                 city: 'Test City',
                 state: 'TS',
                 zip: '12345',
+                status: 'active',
                 contacts: [
                     { name: 'John Doe', email: 'john@test.com', phone: '123-456-7890' }
                 ]
@@ -120,6 +121,7 @@ describe('Client Controller - Complete Coverage', () => {
                 city: 'Test City',
                 state: 'TS',
                 zip: '12345',
+                status: 'active',
                 contacts: [] // contacts || [] should result in []
             }, {
                 include: [{ model: Contact, as: 'contacts' }]
@@ -147,6 +149,7 @@ describe('Client Controller - Complete Coverage', () => {
                 city: undefined,
                 state: undefined,
                 zip: undefined,
+                status: 'active',
                 contacts: [] // null || [] should result in []
             }, {
                 include: [{ model: Contact, as: 'contacts' }]
@@ -507,7 +510,8 @@ describe('Client Controller - Complete Coverage', () => {
 
             const mockClient = {
                 id: 1,
-                companyName: 'Test Company'
+                companyName: 'Test Company',
+                status: 'active',
             };
 
             const mockJob = {
@@ -548,7 +552,7 @@ describe('Client Controller - Complete Coverage', () => {
                 // All other fields undefined - should use defaults
             };
 
-            const mockClient = { id: 1 };
+            const mockClient = { id: 1, status: 'active' };
             const mockJob = {
                 id: 1,
                 description: 'Simple Job',
@@ -599,7 +603,7 @@ describe('Client Controller - Complete Coverage', () => {
                 invoiceId: undefined // undefined || null should be null
             };
 
-            const mockClient = { id: 1 };
+            const mockClient = { id: 1, status: 'active' };
             const mockJob = { id: 1, description: 'Test Job', clientId: 1 };
 
             Client.findByPk.mockResolvedValue(mockClient);
@@ -651,7 +655,7 @@ describe('Client Controller - Complete Coverage', () => {
                 description: 'Test Job'
             };
 
-            const mockClient = { id: 1 };
+            const mockClient = { id: 1, status: 'active' };
             Client.findByPk.mockResolvedValue(mockClient);
 
             // 🔧 CORREGIR: new Date('invalid-date') creates Invalid Date
