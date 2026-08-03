@@ -42,6 +42,11 @@ jest.mock('sequelize', () => {
         static hasMany(model, options) {
             return this;
         }
+
+        static addHook(name, fn) {
+            this[name] = fn;
+            return this;
+        }
         
         static count() {
             return Promise.resolve(0);
@@ -82,12 +87,12 @@ describe('Proposal Model Hooks - Logic Testing', () => {
         };
     });
 
-    describe('🎣 beforeCreate Hook Logic', () => {
+    describe('🎣 beforeValidate Hook Logic', () => {
         test('should auto-generate proposalNumber when not provided', async () => {
             const mockCount = jest.fn().mockResolvedValue(5);
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockCount).toHaveBeenCalled();
             expect(mockProposal.proposalNumber).toBe('PROP-000006');
@@ -98,7 +103,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
             const mockCount = jest.fn();
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockCount).not.toHaveBeenCalled();
             expect(mockProposal.proposalNumber).toBe('CUSTOM-001');
@@ -108,7 +113,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
             const mockCount = jest.fn().mockResolvedValue(0);
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockProposal.proposalNumber).toBe('PROP-000001');
         });
@@ -117,7 +122,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
             const mockCount = jest.fn().mockResolvedValue(999);
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockProposal.proposalNumber).toBe('PROP-001000');
         });
@@ -127,7 +132,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
             const mockCount = jest.fn().mockResolvedValue(3);
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockProposal.proposalNumber).toBe('PROP-000004');
         });
@@ -137,7 +142,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
             const mockCount = jest.fn().mockResolvedValue(10);
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockProposal.proposalNumber).toBe('PROP-000011');
         });
@@ -147,7 +152,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
             const mockCount = jest.fn().mockResolvedValue(7);
             Proposal.count = mockCount;
 
-            await Proposal.beforeCreate(mockProposal);
+            await Proposal.beforeValidate(mockProposal);
 
             expect(mockProposal.proposalNumber).toBe('PROP-000008');
         });
@@ -168,7 +173,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
                 const mockCount = jest.fn().mockResolvedValue(testCase.count);
                 Proposal.count = mockCount;
                 
-                await Proposal.beforeCreate(proposal);
+                await Proposal.beforeValidate(proposal);
                 expect(proposal.proposalNumber).toBe(testCase.expected);
             }
         });
@@ -410,7 +415,7 @@ describe('Proposal Model Hooks - Logic Testing', () => {
         // });
 
         test('should verify hooks are assigned', () => {
-            expect(typeof Proposal.beforeCreate).toBe('function');
+            expect(typeof Proposal.beforeValidate).toBe('function');
             expect(typeof Proposal.beforeSave).toBe('function');
         });
     });

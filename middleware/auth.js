@@ -1,9 +1,8 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secreto';
-
 const auth = (req, res, next) => {
   try {
+    const JWT_SECRET = process.env.JWT_SECRET || 'secreto';
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ 

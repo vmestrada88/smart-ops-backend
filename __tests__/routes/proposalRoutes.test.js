@@ -36,12 +36,12 @@ jest.mock('../../models/Product', () => ({
 }));
 
 // 🔧 MOCK DE MIDDLEWARES
-jest.mock('../../middleware/auth', () => 
-    jest.fn((req, res, next) => {
+jest.mock('../../middleware/auth', () => ({
+    auth: jest.fn((req, res, next) => {
         req.user = { id: 'user123', role: 'user' };
         next();
     })
-);
+}));
 
 jest.mock('../../middleware/adminAuth', () => 
     jest.fn((req, res, next) => {
@@ -53,7 +53,7 @@ jest.mock('../../middleware/adminAuth', () =>
 // Importar después de los mocks
 const proposalRoutes = require('../../routes/proposalRoutes');
 const { Proposal, ProposalItem } = require('../../models/Proposal');
-const auth = require('../../middleware/auth');
+const { auth } = require('../../middleware/auth');
 const adminAuth = require('../../middleware/adminAuth');
 
 // Crear app de test

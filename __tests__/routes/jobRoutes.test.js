@@ -39,7 +39,7 @@ describe('Job Routes - Complete CRUD Coverage', () => {
                 .expect(200);
 
             expect(response.body).toEqual(mockJobs);
-            expect(Job.findAll).toHaveBeenCalledWith();
+            expect(Job.findAll).toHaveBeenCalledWith({ where: {} });
         });
 
         test('should handle database error when getting all jobs (lines 18-20)', async () => {
@@ -53,7 +53,7 @@ describe('Job Routes - Complete CRUD Coverage', () => {
             expect(response.body).toEqual({
                 error: 'Database connection failed'
             });
-            expect(Job.findAll).toHaveBeenCalledWith();
+            expect(Job.findAll).toHaveBeenCalledWith({ where: {} });
         });
     });
 
