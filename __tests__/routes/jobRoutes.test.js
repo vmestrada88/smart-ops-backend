@@ -10,6 +10,16 @@ jest.mock('../../models/Job', () => ({
     destroy: jest.fn()
 }));
 
+// Auth: simulate a logged-in user whose role each test can change
+let mockCurrentUser = { id: 1, role: 'admin' };
+jest.mock('../../middleware/auth', () => ({
+    auth: (req, res, next) => { req.user = mockCurrentUser; next(); }
+}));
+jest.mock('../../utils/clientScope', () => ({
+    resolveClientIdForUser: jest.fn(),
+}));
+const { resolveClientIdForUser } = require('../../utils/clientScope');
+
 // Ahora importar las rutas DESPUÉS del mock
 const jobRoutes = require('../../routes/jobRoutes');
 const Job = require('../../models/Job'); // Importar el mock para usar en tests
@@ -22,6 +32,73 @@ app.use('/api/jobs', jobRoutes);
 describe('Job Routes - Complete CRUD Coverage', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockCurrentUser = { id: 1, role: 'admin' };
+    });
+
+    describe('🔒 Role-based access', () => {
+        test('client users only get jobs of their own company', async () => {
+            mockCurrentUser = { id: 7, role: 'client' };
+            resolveClientIdForUser.mockResolvedValue(42);
+            Job.findAll.mockResolvedValue([{ id: 1, clientId: 42, status: 'completed' }]);
+
+            const response = await request(app).get('/api/jobs').expect(200);
+
+            expect(resolveClientIdForUser).toHaveBeenCalledWith(7);
+            expect(Job.findAll).toHaveBeenCalledWith({ where: { clientId: 42 } });
+            expect(response.body).toEqual([{ id: 1, clientId: 42, status: 'completed' }]);
+        });
+
+        test('client users not linked to a company get an empty list', async () => {
+            mockCurrentUser = { id: 7, role: 'client' };
+            resolveClientIdForUser.mockResolvedValue(null);
+
+            const response = await request(app).get('/api/jobs').expect(200);
+
+            expect(response.body).toEqual([]);
+            expect(Job.findAll).not.toHaveBeenCalled();
+        });
+
+        test('staff users are not scoped to a client', async () => {
+            mockCurrentUser = { id: 2, role: 'technician' };
+            Job.findAll.mockResolvedValue([]);
+
+            await request(app).get('/api/jobs').expect(200);
+
+            expect(resolveClientIdForUser).not.toHaveBeenCalled();
+            expect(Job.findAll).toHaveBeenCalledWith({ where: {} });
+        });
+
+        test('client users get 404 for a job of another company', async () => {
+            mockCurrentUser = { id: 7, role: 'client' };
+            resolveClientIdForUser.mockResolvedValue(42);
+            Job.findByPk.mockResolvedValue({ id: 5, clientId: 99 });
+
+            const response = await request(app).get('/api/jobs/5').expect(404);
+
+            expect(response.body).toEqual({ error: 'Job not found' });
+        });
+
+        test('client users can read a job of their own company', async () => {
+            mockCurrentUser = { id: 7, role: 'client' };
+            resolveClientIdForUser.mockResolvedValue(42);
+            Job.findByPk.mockResolvedValue({ id: 5, clientId: 42 });
+
+            await request(app).get('/api/jobs/5').expect(200);
+        });
+
+        test.each([
+            ['post', '/api/jobs'],
+            ['put', '/api/jobs/1'],
+            ['delete', '/api/jobs/1'],
+        ])('client users cannot %s %s', async (method, url) => {
+            mockCurrentUser = { id: 7, role: 'client' };
+
+            await request(app)[method](url).send({ title: 'x' }).expect(403);
+
+            expect(Job.create).not.toHaveBeenCalled();
+            expect(Job.update).not.toHaveBeenCalled();
+            expect(Job.destroy).not.toHaveBeenCalled();
+        });
     });
 
     describe('📋 GET /api/jobs - Get all jobs', () => {
@@ -366,4 +443,4 @@ describe('Job Routes - Complete CRUD Coverage', () => {
             expect(true).toBe(true);
         });
     });
-});
+});

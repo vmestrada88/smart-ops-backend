@@ -352,3 +352,13 @@ describe('User Model - 100% Coverage Real Code', () => {
         });
     });
 });
+describe('User Model - password is never serialized', () => {
+    test('toJSON strips the password hash', () => {
+        const User = require('../../models/User');
+        const user = new User();
+        user.get = () => ({ id: 1, email: 'a@test.com', role: 'admin', password: '$2b$10$hash' });
+
+        expect(user.toJSON()).toEqual({ id: 1, email: 'a@test.com', role: 'admin' });
+        expect(JSON.stringify(user)).not.toContain('$2b$10$hash');
+    });
+});

@@ -12,7 +12,7 @@ jest.mock('../../models', () => ({
     },
 }));
 // Mock authentication middlewares
-jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => next() })); // Simulate successful authentication
+jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => { req.user = { id: 1, role: 'admin' }; next(); } })); // Simulate an authenticated admin
 jest.mock('../../middleware/adminAuth', () => (req, res, next) => next()); // Simulate successful admin authentication
 describe('User Controller', () => {
     beforeEach(() => {
@@ -54,18 +54,29 @@ describe('User Controller', () => {
         expect(res.body).toEqual(mockUser);
         expect(User.findByPk).toHaveBeenCalledWith('1');
     });
-    it('should update a user', async () => {
-    const mockUser = { id: 1, name: 'User 1', email: 'user1@example.com', password: 'hashedpassword1', role: 'client', createdAt: '2025-09-13T10:28:19.874Z' };
-    User.update.mockResolvedValue([1]);
-    User.findByPk.mockResolvedValue(mockUser); 
+    it('should update a user via the instance so the password hook runs', async () => {
+    const mockUser = { id: 1, name: 'User 1', email: 'user1@example.com', role: 'client', update: jest.fn().mockResolvedValue(undefined) };
+    User.findByPk.mockResolvedValue(mockUser);
 
     const res = await request(app)
       .put('/api/users/1')
-      .send({ name: 'User 1', email: 'user1@example.com', password: 'hashedpassword1', role: 'client' });
+      .send({ name: 'User 1', email: 'user1@example.com', password: 'newpassword1', role: 'client' });
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual(mockUser);
-    expect(User.update).toHaveBeenCalledWith({ name: 'User 1', email: 'user1@example.com', password: 'hashedpassword1', role: 'client' }, { where: { id: '1' } }); 
+    expect(res.body).toEqual({ id: 1, name: 'User 1', email: 'user1@example.com', role: 'client' });
+    expect(User.findByPk).toHaveBeenCalledWith('1');
+    expect(mockUser.update).toHaveBeenCalledWith({ name: 'User 1', email: 'user1@example.com', password: 'newpassword1', role: 'client' });
+    expect(User.update).not.toHaveBeenCalled();
+  });
+
+    it('should only update the fields that were provided', async () => {
+    const mockUser = { id: 1, name: 'User 1', update: jest.fn().mockResolvedValue(undefined) };
+    User.findByPk.mockResolvedValue(mockUser);
+
+    const res = await request(app).put('/api/users/1').send({ name: 'Renamed', password: '' });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockUser.update).toHaveBeenCalledWith({ name: 'Renamed' });
   });
 
     it('should delete a user', async () => {
@@ -83,13 +94,13 @@ describe('User Controller', () => {
         expect(User.findByPk).toHaveBeenCalledWith('999');
     });
     it('should return 404 if user to update is not found', async () => {
-    User.update.mockResolvedValue([0]);
+    User.findByPk.mockResolvedValue(null);
     const res = await request(app)
       .put('/api/users/999')
       .send({ email: 'user1@example.com', name: 'User 1', password: 'hashedpassword1', role: 'client' });
     expect(res.statusCode).toBe(404);
     expect(res.body).toEqual({ error: 'User not found' });
-    expect(User.update).toHaveBeenCalledWith({ email: 'user1@example.com', name: 'User 1', password: 'hashedpassword1', role: 'client' }, { where: { id: '999' } }); 
+    expect(User.findByPk).toHaveBeenCalledWith('999');
   });
 
   it('should return 404 if user to delete is not found', async () => {
@@ -100,4 +111,4 @@ describe('User Controller', () => {
     expect(res.body).toEqual({ error: 'User not found' });
     expect(User.destroy).toHaveBeenCalledWith({ where: { id: '999' } }); 
   });
-});
+});

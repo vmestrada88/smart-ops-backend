@@ -158,9 +158,11 @@ async function initializeDatabase() {
 initializeDatabase();
 
 /**
- * Debug endpoint to see database info and products
+ * Debug endpoint to see database info and products.
+ * Only available outside production/staging: it exposes connection details.
  */
-app.get('/api/debug/db', async (req, res) => {
+const isDeployedEnv = ['production', 'staging'].includes(process.env.NODE_ENV);
+if (!isDeployedEnv) app.get('/api/debug/db', async (req, res) => {
   try {
     const { Product } = require('./models');
     
@@ -192,6 +194,10 @@ app.get('/api/debug/db', async (req, res) => {
  * Starts the Express server and logs allowed origins.
  */
 if (require.main === module) {
+  if (!process.env.JWT_SECRET) {
+    console.error('❌ JWT_SECRET is not set. Refusing to start without a token signing secret.');
+    process.exit(1);
+  }
   app.listen(PORT, () => {
     console.log(`Server listening on ${PORT}`);
     console.log('Allowed origins:', Array.from(allowedOrigins).join(', '));

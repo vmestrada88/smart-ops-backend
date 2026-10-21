@@ -8,6 +8,14 @@ const express = require('express');
 const router = express.Router();
 const Job = require('../models/Job'); // Import Job model
 const { Op } = require('sequelize');
+const { auth } = require('../middleware/auth');
+const { requireRole, STAFF_ROLES } = require('../middleware/requireRole');
+const { resolveClientIdForUser } = require('../utils/clientScope');
+
+const staffOnly = requireRole(...STAFF_ROLES);
+
+// Every job route requires a logged-in user
+router.use(auth);
 
 // GET all jobs
 router.get('/', async (req, res) => {
@@ -20,6 +28,13 @@ router.get('/', async (req, res) => {
       if (to) where.startTime[Op.lte] = new Date(to);
     }
     if (technicianId) where.assignedTo = technicianId;
+
+    // 'client' users only ever see their own company's jobs
+    if (!STAFF_ROLES.includes(req.user.role)) {
+      const clientId = await resolveClientIdForUser(req.user.id);
+      if (!clientId) return res.json([]);
+      where.clientId = clientId;
+    }
 
     let jobs = await Job.findAll({ where });
 
@@ -46,6 +61,12 @@ router.get('/:id', async (req, res) => {
   try {
     const job = await Job.findByPk(req.params.id);
     if (!job) return res.status(404).json({ error: 'Job not found' });
+    if (!STAFF_ROLES.includes(req.user.role)) {
+      const clientId = await resolveClientIdForUser(req.user.id);
+      if (!clientId || String(job.clientId) !== String(clientId)) {
+        return res.status(404).json({ error: 'Job not found' });
+      }
+    }
     res.json(job);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -53,7 +74,7 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST create a new job
-router.post('/', async (req, res) => {
+router.post('/', staffOnly, async (req, res) => {
   try {
     // maintain legacy 'date' column for compatibility by setting it to startTime if present
     const payload = { ...req.body };
@@ -96,7 +117,7 @@ router.post('/', async (req, res) => {
 });
 
 // PUT update a job
-router.put('/:id', async (req, res) => {
+router.put('/:id', staffOnly, async (req, res) => {
   try {
     const payload = { ...req.body };
     if (!payload.date && payload.startTime) payload.date = payload.startTime;
@@ -140,7 +161,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // DELETE a job
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', staffOnly, async (req, res) => {
   try {
     const deleted = await Job.destroy({ where: { id: req.params.id } });
     if (!deleted) return res.status(404).json({ error: 'Job not found' });

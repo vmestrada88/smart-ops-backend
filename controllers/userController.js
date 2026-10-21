@@ -42,10 +42,14 @@ exports.getUserById = async (req, res) => {
 exports.updateUser = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-    const [updated] = await User.update({ name, email, password, role }, { where: { id: req.params.id } });
-    if (!updated) return res.status(404).json({ error: 'User not found' });
-    const updatedUser = await User.findByPk(req.params.id);
-    res.json(updatedUser);
+    const user = await User.findByPk(req.params.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    // Only touch provided fields; instance update runs the beforeUpdate hook that hashes the password
+    const changes = Object.fromEntries(
+      Object.entries({ name, email, password, role }).filter(([, value]) => value !== undefined && value !== '')
+    );
+    await user.update(changes);
+    res.json(user);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -59,4 +63,4 @@ exports.deleteUser = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-};
+};

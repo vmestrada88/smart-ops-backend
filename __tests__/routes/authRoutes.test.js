@@ -4,11 +4,16 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 // Mocks estratégicos
-jest.mock('../../models/User', () => ({
-  findOne: jest.fn(),
-  create: jest.fn(),
-  findByPk: jest.fn(),
-}));
+jest.mock('../../models/User', () => {
+  const User = {
+    findOne: jest.fn(),
+    create: jest.fn(),
+    findByPk: jest.fn(),
+  };
+  // User.scope('withPassword') returns the same mocked model
+  User.scope = jest.fn(() => User);
+  return User;
+});
 jest.mock('bcrypt');
 jest.mock('jsonwebtoken');
 jest.mock('../../routes/amazonAffiliateListingRoutes', () => {
@@ -115,7 +120,7 @@ describe('Auth Routes - 100% Coverage for routes/auth.js', () => {
                 id: 123,
                 name: 'Test User',
                 email: 'test@test.com',
-                role: 'user'
+                role: 'client'
             };
             User.create.mockResolvedValue(mockUser);
 
@@ -133,14 +138,27 @@ describe('Auth Routes - 100% Coverage for routes/auth.js', () => {
             expect(response.body.user.id).toBe(123);
             expect(response.body.user.name).toBe('Test User');
             expect(response.body.user.email).toBe('test@test.com');
-            expect(response.body.user.role).toBe('user');
+            expect(response.body.user.role).toBe('client');
             
             expect(User.create).toHaveBeenCalledWith({
                 name: 'Test User',
                 email: 'test@test.com',
                 password: 'password123',
-                role: 'user'
+                role: 'client'
             });
+        });
+
+        test('should ignore a role sent by the caller and always create a client', async () => {
+            User.findOne.mockResolvedValue(null);
+            User.create.mockImplementation(async (data) => ({ id: 5, ...data }));
+
+            const response = await request(app)
+                .post('/api/register')
+                .send({ name: 'Mallory', email: 'm@test.com', password: 'password123', role: 'admin' });
+
+            expect(response.status).toBe(201);
+            expect(response.body.user.role).toBe('client');
+            expect(User.create).toHaveBeenCalledWith(expect.objectContaining({ role: 'client' }));
         });
 
         test('should execute register catch block - lines 25-27', async () => {
@@ -235,38 +253,29 @@ describe('Auth Routes - 100% Coverage for routes/auth.js', () => {
             );
         });
 
-        test('should execute login with fallback JWT_SECRET - line 42', async () => {
-            // Probar el fallback 'secreto' cuando no hay JWT_SECRET
+        test('should load the password hash through the withPassword scope', async () => {
+            User.findOne.mockResolvedValue(null);
+
+            await request(app).post('/api/login').send({ email: 'a@test.com', password: 'x' });
+
+            expect(User.scope).toHaveBeenCalledWith('withPassword');
+        });
+
+        test('should fail instead of signing with a default secret when JWT_SECRET is missing', async () => {
             const originalSecret = process.env.JWT_SECRET;
             delete process.env.JWT_SECRET;
 
-            const mockUser = {
-                id: 789,
-                name: 'Test User',
-                email: 'test@test.com',
-                password: '$2b$10$hashedPassword',
-                role: 'user'
-            };
-            
-            User.findOne.mockResolvedValue(mockUser);
+            User.findOne.mockResolvedValue({ id: 789, name: 'Test User', email: 'test@test.com', password: 'hash', role: 'client' });
             bcrypt.compare.mockResolvedValue(true);
-            jwt.sign.mockReturnValue('fallback-token');
 
             const response = await request(app)
                 .post('/api/login')
-                .send({
-                    email: 'test@test.com',
-                    password: 'password123'
-                });
+                .send({ email: 'test@test.com', password: 'password123' });
 
-            expect(response.status).toBe(200);
-            expect(jwt.sign).toHaveBeenCalledWith(
-                { id: 789, role: 'user' },
-                'secreto', // Fallback value
-                { expiresIn: '1h' }
-            );
+            expect(response.status).toBe(500);
+            expect(response.body.error).toBe('JWT_SECRET is not configured');
+            expect(jwt.sign).not.toHaveBeenCalled();
 
-            // Restaurar JWT_SECRET
             process.env.JWT_SECRET = originalSecret;
         });
 
@@ -285,54 +294,101 @@ describe('Auth Routes - 100% Coverage for routes/auth.js', () => {
         });
     });
 
-    describe('🔐 RESET PASSWORD ROUTE - LÍNEAS 59-75', () => {
-        test('should execute reset password with non-existent user - line 63', async () => {
-            User.findOne.mockResolvedValue(null);
+    describe('🔐 CHANGE PASSWORD ROUTE', () => {
+        const authHeader = { Authorization: 'Bearer valid-token' };
 
-            const response = await request(app)
-                .post('/api/reset-password')
-                .send({
-                    email: 'nonexistent@test.com',
-                    newPassword: 'newpassword123'
-                });
-
-            expect(response.status).toBe(404);
-            expect(response.body.error).toBe('User not found');
-            expect(User.findOne).toHaveBeenCalledWith({ where: { email: 'nonexistent@test.com' } });
+        beforeEach(() => {
+            jwt.verify.mockReturnValue({ id: 999, role: 'client' });
         });
 
-        test('should execute successful reset password - lines 65-72', async () => {
-            const mockUser = {
-                id: 999,
-                email: 'test@test.com',
-                password: 'oldHashedPassword',
-                save: jest.fn().mockResolvedValue(true)
-            };
-            
-            User.findOne.mockResolvedValue(mockUser);
-
+        test('the old unauthenticated reset-password route no longer exists', async () => {
             const response = await request(app)
                 .post('/api/reset-password')
-                .send({
-                    email: 'test@test.com',
-                    newPassword: 'newpassword123'
-                });
+                .send({ email: 'victim@test.com', newPassword: 'hacked123' });
+
+            expect(response.status).toBe(404);
+            expect(User.findOne).not.toHaveBeenCalled();
+        });
+
+        test('should require authentication', async () => {
+            const response = await request(app)
+                .post('/api/change-password')
+                .send({ currentPassword: 'oldpassword', newPassword: 'newpassword123' });
+
+            expect(response.status).toBe(401);
+            expect(User.findByPk).not.toHaveBeenCalled();
+        });
+
+        test('should require both passwords', async () => {
+            const response = await request(app)
+                .post('/api/change-password')
+                .set(authHeader)
+                .send({ newPassword: 'newpassword123' });
+
+            expect(response.status).toBe(400);
+        });
+
+        test('should reject short new passwords', async () => {
+            const response = await request(app)
+                .post('/api/change-password')
+                .set(authHeader)
+                .send({ currentPassword: 'oldpassword', newPassword: 'short' });
+
+            expect(response.status).toBe(400);
+            expect(User.findByPk).not.toHaveBeenCalled();
+        });
+
+        test('should return 404 if the logged-in user no longer exists', async () => {
+            User.findByPk.mockResolvedValue(null);
+
+            const response = await request(app)
+                .post('/api/change-password')
+                .set(authHeader)
+                .send({ currentPassword: 'oldpassword', newPassword: 'newpassword123' });
+
+            expect(response.status).toBe(404);
+            expect(User.findByPk).toHaveBeenCalledWith(999);
+        });
+
+        test('should reject a wrong current password', async () => {
+            const mockUser = { id: 999, password: 'oldHash', save: jest.fn() };
+            User.findByPk.mockResolvedValue(mockUser);
+            bcrypt.compare.mockResolvedValue(false);
+
+            const response = await request(app)
+                .post('/api/change-password')
+                .set(authHeader)
+                .send({ currentPassword: 'wrongpassword', newPassword: 'newpassword123' });
+
+            expect(response.status).toBe(401);
+            expect(mockUser.save).not.toHaveBeenCalled();
+        });
+
+        test('should change the password of the logged-in user only', async () => {
+            const mockUser = { id: 999, password: 'oldHash', save: jest.fn().mockResolvedValue(true) };
+            User.findByPk.mockResolvedValue(mockUser);
+            bcrypt.compare.mockResolvedValue(true);
+
+            const response = await request(app)
+                .post('/api/change-password')
+                .set(authHeader)
+                .send({ currentPassword: 'oldpassword', newPassword: 'newpassword123', email: 'other@test.com' });
 
             expect(response.status).toBe(200);
             expect(response.body.message).toBe('Password updated successfully');
+            expect(bcrypt.compare).toHaveBeenCalledWith('oldpassword', 'oldHash');
             expect(mockUser.password).toBe('newpassword123');
             expect(mockUser.save).toHaveBeenCalled();
+            expect(User.findOne).not.toHaveBeenCalled();
         });
 
-        test('should execute reset password catch block - lines 73-75', async () => {
-            User.findOne.mockRejectedValue(new Error('Database error'));
+        test('should handle database errors', async () => {
+            User.findByPk.mockRejectedValue(new Error('Database error'));
 
             const response = await request(app)
-                .post('/api/reset-password')
-                .send({
-                    email: 'test@test.com',
-                    newPassword: 'newpassword123'
-                });
+                .post('/api/change-password')
+                .set(authHeader)
+                .send({ currentPassword: 'oldpassword', newPassword: 'newpassword123' });
 
             expect(response.status).toBe(500);
             expect(response.body.error).toBe('Database error');
@@ -383,22 +439,6 @@ describe('Auth Routes - 100% Coverage for routes/auth.js', () => {
             User.findOne.mockRejectedValue(new Error('DB Error'));
             await request(app).post('/api/login').send({ email: 'test@test.com', password: 'pass' });
 
-            // 3. RESET PASSWORD: Todas las branches
-            
-            // Branch: Usuario no encontrado
-            User.findOne.mockResolvedValue(null);
-            await request(app).post('/api/reset-password').send({ email: 'none@test.com', newPassword: 'new' });
-
-            // Branch: Reset exitoso
-            const mockUser = { save: jest.fn() };
-            User.findOne.mockResolvedValue(mockUser);
-            bcrypt.hash.mockResolvedValue('hashedNew');
-            await request(app).post('/api/reset-password').send({ email: 'test@test.com', newPassword: 'new' });
-
-            // Branch: Error en catch
-            User.findOne.mockRejectedValue(new Error('Reset Error'));
-            await request(app).post('/api/reset-password').send({ email: 'test@test.com', newPassword: 'new' });
-
             // Verificar que todas las funciones se ejecutaron
             expect(User.findOne).toHaveBeenCalled();
             expect(User.create).toHaveBeenCalled();
@@ -406,4 +446,4 @@ describe('Auth Routes - 100% Coverage for routes/auth.js', () => {
             expect(jwt.sign).toHaveBeenCalled();
         });
     });
-});
+});

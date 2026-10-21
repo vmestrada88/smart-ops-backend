@@ -6,53 +6,63 @@
 const express = require('express');
 const router = express.Router();
 const clientController = require('../controllers/clientController');
-const adminAuth = require('../middleware/adminAuth');
 const {auth} = require('../middleware/auth');
+const { requireRole, STAFF_ROLES } = require('../middleware/requireRole');
+const { getUserEmail } = require('../utils/clientScope');
+
+const staffOnly = requireRole(...STAFF_ROLES);
+
+/**
+ * Staff can look up any client by contact email; a 'client' user only their own.
+ */
+const ownEmailOrStaff = async (req, res, next) => {
+  if (STAFF_ROLES.includes(req.user.role)) return next();
+  try {
+    const email = await getUserEmail(req.user.id);
+    if (email && email.toLowerCase() === String(req.params.email).toLowerCase()) return next();
+    return res.status(403).json({ success: false, message: 'Access denied.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+// Every client route requires a logged-in user
+router.use(auth);
 
 /**
  * Route to get all clients.
- * Requires authentication.
+ * Requires staff role.
  */
-// router.get('/', auth, clientController.getClients); // Get all clients
-router.get('/',  clientController.getClients); // Get all clients without auth
+router.get('/', staffOnly, clientController.getClients); // Get all clients
 
 /**
  * Route to create a new client.
- * Requires admin authentication.
+ * Requires staff role.
  */
-// router.post('/', adminAuth, clientController.createClient); // Create a new client
-router.post('/',  clientController.createClient); // Create a new client without auth
-
-/**
- * Route to get a client by ID.
- * Requires authentication.
- */
-// router.get('/:id', auth, clientController.getClientById); // Get client by ID
-router.get('/:id', clientController.getClientById); // Get client by ID without auth
+router.post('/', staffOnly, clientController.createClient); // Create a new client
 
 /**
  * Route to get a client by contact email.
+ * Staff, or the client user that owns that email.
  */
-router.get('/by-email/:email', clientController.getClientByContactEmail);
+router.get('/by-email/:email', ownEmailOrStaff, clientController.getClientByContactEmail);
+
+/**
+ * Route to get a client by ID.
+ * Requires staff role.
+ */
+router.get('/:id', staffOnly, clientController.getClientById); // Get client by ID
 
 /**
  * Route to update a client by ID.
- * Requires admin authentication.
+ * Requires staff role.
  */
-// router.put('/:id', adminAuth, clientController.updateClient); // Update client by ID
-router.put('/:id',  clientController.updateClient); // Update client by ID without auth
-
-/**
- * Route to delete a client by ID.
- * Requires admin authentication.
- */
-// router.delete('/:id', adminAuth, clientController.deleteClient); // Delete client by ID
+router.put('/:id', staffOnly, clientController.updateClient); // Update client by ID
 
 /**
  * Route to add a job to a client.
- * Requires admin authentication.
+ * Requires staff role.
  */
-// router.post('/:id/jobs', adminAuth, clientController.addJobToClient); // Add job to client
-router.post('/:id/jobs', clientController.addJobToClient); // Add job to client  without auth
+router.post('/:id/jobs', staffOnly, clientController.addJobToClient); // Add job to client
 
 module.exports = router; // Export the router

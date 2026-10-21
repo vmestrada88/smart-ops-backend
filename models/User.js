@@ -6,6 +6,13 @@ class User extends Model {
   async matchPassword(enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
   }
+
+  // Never serialize the password hash, even when an instance was loaded with it
+  toJSON() {
+    const values = { ...this.get() };
+    delete values.password;
+    return values;
+  }
 }
 
 User.init({
@@ -39,6 +46,13 @@ User.init({
   sequelize,
   modelName: 'User',
   timestamps: false,
+  // Password hash is excluded by default; use User.scope('withPassword') when it is needed (login, password change)
+  defaultScope: {
+    attributes: { exclude: ['password'] },
+  },
+  scopes: {
+    withPassword: {},
+  },
   hooks: {
     beforeCreate: async (user) => {
       if (user.password) {

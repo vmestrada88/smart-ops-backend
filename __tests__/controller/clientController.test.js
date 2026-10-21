@@ -21,7 +21,7 @@ jest.mock('../../models', () => ({
 }));
 
 // Mock authentication middlewares
-jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => next() })); // Simulate successful authentication
+jest.mock('../../middleware/auth', () => ({ auth: (req, res, next) => { req.user = { id: 1, role: 'admin' }; next(); } })); // Simulate an authenticated admin
 jest.mock('../../middleware/adminAuth', () => (req, res, next) => next()); // Simulate successful admin authentication
 
 describe('Client Controller', () => {
@@ -210,4 +210,4 @@ describe('Client Controller', () => {
     expect(res.body).toEqual({ message: 'Client no found' });
   });
   
-});
+});
