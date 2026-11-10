@@ -38,3 +38,23 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/smart-ops-back-end:production
             ghcr.io/${{ github.repository_owner }}/smart-ops-back-end:${{ github.sha }}
+
+  trigger-ec2-deploy:
+    name: Trigger EC2 deploy
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start the production deploy in smart-ops-infrastructure
+        env:
+          GH_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::INFRA_DEPLOY_TOKEN is not set, so the EC2 deploy was not started. Run 'Deploy Production to EC2' in smart-ops-infrastructure by hand."
+            exit 0
+          fi
+          gh workflow run deploy-production-ec2.yml \
+            --repo ${{ github.repository_owner }}/smart-ops-infrastructure \
+            --ref production \
+            -f service=back-end \
+            -f image_tag=${{ github.sha }}
+          echo "✅ EC2 deploy requested for back-end (${{ github.sha }})"
