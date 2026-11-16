@@ -41,6 +41,7 @@ const cors = require('cors');
 const path = require('path');
 const productRoutes = require('./routes/productRoutes');
 const sequelize = require('./models/db');
+const { runMigrations } = require('./utils/runMigrations');
 
 // 2. Import auth middleware
 const { auth } = require('./middleware/auth');
@@ -148,7 +149,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 async function initializeDatabase() {
   try {
     await sequelize.sync({ alter: false });
-    
+    // sync never adds columns to existing tables; apply pending migrations/*.sql
+    await runMigrations(sequelize);
   } catch (err) {
     console.error('❌ Error syncing database:', err);
   }
